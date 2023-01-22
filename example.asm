@@ -32,8 +32,8 @@ prescale_c equ 0x10;old copy of the prescaler, so we can detect changes in presc
  option
 ;setup io
  movwf GPIO
- TRIS GPIO
  bsf GPIO,OE;make sure were not outputting garbage from the 595
+ TRIS GPIO
 ;output reg
  clrf out
 ;output leds
@@ -103,29 +103,31 @@ update;copies out register to the shift register
  bsf GPIO,DAT
  call clock
  bcf GPIO,DAT
- call clock
+ call clock;update storage register
  bcf GPIO,OE
  retlw 0x00
 
 mode1_init
- movlw b'01010101'
- movwf led8_1
- movwf led8_2
- goto main_loop
-mode2_init
  movlw b'11111111'
  movwf led8_1
  movwf led8_2
  goto main_loop
-mode3_init
- movlw b'00001111'
+mode2_init
+ movlw b'01010101'
  movwf led8_1
- clrf led8_2
+ movwf led8_2
  goto main_loop
-mode4_init
- movlw b'01001001'
+mode3_init
+ movlw b'00011111'
  movwf led8_1
- movlw b'00100100'
+ movlw b'00011111'
+ movwf led8_2
+ goto main_loop
+mode4_init;continue mode 3
+ goto mode3_init
+mode5_init
+ movlw b'11111111'
+ movwf led8_1
  movwf led8_2
  goto main_loop
 
@@ -138,16 +140,14 @@ mode2_flash
  comf led8_2,F
  goto main_loop
 mode3_flash
- rlf led8_1
- rlf led8_2
- btfss STATUS,C
- goto main_loop
- bsf led8_1,0x00
- bcf STATUS,C
+ rlf led8_1,F
+ rlf led8_2,F
  goto main_loop
 mode4_flash
- rlf led8_1,F
- rrf led8_2,F
+ goto mode3_flash
+mode5_flash
+ comf led8_1,F
+ comf led8_2,F
  goto main_loop
 
 update_pattern
@@ -159,11 +159,15 @@ update_pattern
  goto mode3_flash
  btfsc mode,0x03
  goto mode4_flash
+ btfsc mode,0x04
+ goto mode5_flash
 
 update_mode
+ bcf STATUS,C;make sure no carry bit is present
  rlf mode,F
- btfsc mode,0x04
+ btfsc mode,0x05
  goto done
+ clrf prescale
  btfsc mode,0x00
  goto mode1_init
  btfsc mode,0x01
@@ -172,6 +176,8 @@ update_mode
  goto mode3_init
  btfsc mode,0x03
  goto mode4_init
+ btfsc mode,0x04
+ goto mode5_init
 
 done
  bsf GPIO,OE
@@ -228,7 +234,7 @@ main_loop
  xorwf prescale_c,F;bits will be 1 if they changed
  andwf prescale_c,F;bits will be 1 if they transitioned to 1
 ;update pattern every 0.16s (20ms * 8)
- btfsc prescale_c,0x03
+ btfsc prescale_c,0x02
  goto update_pattern
 ;update mode every 2.56s (20ms * 128)
  btfsc prescale_c,0x07
